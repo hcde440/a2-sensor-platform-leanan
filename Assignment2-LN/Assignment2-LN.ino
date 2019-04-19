@@ -10,6 +10,7 @@
  *  Can't connect to Weather API, verify API call is correct
  *  Can't access the specific weather information
  *  Can I connect/use Http client? Not working --- updated ESP8266 and now it hilights HTTPClient object
+    Error compiling for board Adafruit Feather HUZZAH ESP8266. [vesion 2.5.0 installed] --- works now, installed version 2.4.2 instead
  */
 
 
@@ -25,13 +26,11 @@
  *  
  */
 
-#include <ArduinoHttpClient.h>
+#include "config.h"
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <ArduinoJson.h>        //provides the ability to parse and construct JSON objects
 
-const char* ssid = "University of Washington";                                    // Constant variable for SSID 
-const char* pass = "";                                // Constant variable for password for SSID
 const char* key = "caaa012260600520cacdd6dc03229830";           // Personal API key for accurate Geolocation tracking of IP addresses
 const char* weatherAPIkey= "e8f7cdfb1bd8edcf0475cb27ef2b30d0";  // Personal API key for Open Weather API
 
@@ -56,7 +55,7 @@ GeoData location; //we have created a GeoData type, but not an instance of that 
                   //so we create the variable 'location' of type GeoData
 
 typedef struct {
-  String tp;  // Variable to store Temperature as a string
+  float tp;  // Variable to store Temperature as a float number
   String pr;  // Variable to store Pressure as a string
   String hd;  // Variable to store Humidity as a string
   String ws;  // Variable to store Wind Speed as a string
@@ -71,10 +70,10 @@ void setup() {
   Serial.begin(115200);
   delay(10);
 
-  Serial.print("Connecting to "); Serial.println(ssid);
+  Serial.print("Connecting to "); Serial.println(WIFI_SSID);
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, pass);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   while (WiFi.status() != WL_CONNECTED) { // While the Wifi status reads that it is not connected
     delay(500);                           // Delay for half a second
@@ -82,41 +81,40 @@ void setup() {
   }
 
   Serial.println(); Serial.println("WiFi connected"); Serial.println();
-  Serial.print("Your ESP has been assigned the internal IP address ");
+  //Serial.print("Your ESP has been assigned the internal IP address ");
   // IP address 192.168.43.64
-  Serial.println(WiFi.localIP());
+  //Serial.println(WiFi.localIP());
 
   getGeo(); 
 
-/*  The next five lines prints out sentences that use the 
- *  data stored in the variables that are used in the getGeo and getIP
- *  methods so that they can be read and understood in context.
+/*  The next lines prints out sentences state the 
+ *   wedding planner's name and the agenda (Wedding) of the day
+ *   and uses the Geolocation API to generate the location of the 
+ *   wedding venue by it's City and State.
  */
  
-  Serial.println("Your external IP address is " + location.ip);
-  Serial.print("Your ESP is currently in " + location.cn + " (" + location.cc + "),");
-  Serial.println(" in or near " + location.cy + ", " + location.rc + ".");
-  Serial.println("and located at (roughly) ");
-  Serial.println(location.lt + " latitude by " + location.ln + " longitude.");
+  Serial.println("Wedding Planner: Janet May");
+  Serial.println("Today: Tim and Tana's Wedding at the Hilton in " + location.cy + ", " + location.rc + ".");
 
-  getMet(); // tp, pr, hd, ws, wd
+  getMet(); 
 
-/*  The next five lines prints out sentences that use the 
- *  data stored in the variables that are used in the getGeo and getIP
- *  methods so that they can be read and understood in context.
+/*  The next lines print out the current weather conditions in the area 
+ *  where the wedding is being held (location.cy, location.rc) and whether 
+ *  the reception can take place outdoors or should be held indoors.
  */
 
-  Serial.println();
-//  Serial.println("With the temperature in " + location.cy + ", " + location.rc);
-//  Serial.println("is " + conditions.tp + "F, with a humidity of " + conditions.hd + "%. The winds are blowing");
-//  Serial.println(conditions.wd + " at " + conditions.ws + " miles per hour, and the ");
-//  Serial.println("barometric pressure is at " + conditions.pr + " millibars.");
-  Serial.println("The current weather in Seattle is " + conditions.wt + ". More specifically, there is " + conditions.wd);
-
+    Serial.println("The current weather in " + location.cy + ", " + location.rc + " is " + conditions.wt + ". More specifically, there is " + conditions.wd);
+    Serial.println("The current temperature is: " + String(conditions.tp) + " degrees Fahrenheit.");
+    if(conditions.wt == "Rain" || conditions.wt == "Wind" || conditions.wt == "Snow" ||conditions.tp > 69 ) {
+      Serial.println("Setup reception indoors.");
+    } else { 
+      Serial.println("Setup reception outdoors.");
+    }
 }
 
 void loop() {
-  //if we put getIP() here, it would ping the endpoint over and over . . . DOS attack?
+
+
 }
 
 String getIP() {
@@ -194,9 +192,8 @@ void getGeo() {
 
 void getMet() {
   HTTPClient theClient;
-  // api.openweathermap.org/data/2.5/forecast/hourly?q=London,us&appid
-  String apiCall = "http://api.openweathermap.org/data/2.5/forecast/hourly?q=seattle,us";
-  apiCall += "&appid=";
+  String apiCall = "http://api.openweathermap.org/data/2.5/weather?q=Seattle";
+  apiCall += "&units=imperial&appid=";
   apiCall += weatherAPIkey;
   theClient.begin(apiCall);
   int httpCode = theClient.GET();
@@ -210,15 +207,16 @@ void getMet() {
         Serial.println("parseObject() failed in getMet().");
         return;
       }
-//      conditions.tp = root["main"]["temp"].as<String>();
-//      conditions.pr = root["main"]["pressure"].as<String>();
-//      conditions.hd = root["main"]["humidity"].as<String>();
-//      conditions.ws = root["wind"]["speed"].as<String>();
 
-        conditions.wt = root["list"][2]["main"].as<String>(); 
-        Serial.println("-----------WEATHER: " + conditions.wt);  
-        conditions.wd = root["list"][2]["description"].as<String>();
-        Serial.println("-----------DESCRIPTION: " + conditions.wd); 
+      conditions.tp = root["main"]["temp"].as<float>();
+      conditions.hd = root["main"]["humidity"].as<String>();
+      conditions.ws = root["wind"]["speed"].as<String>();
+      conditions.wt = root["weather"][0]["main"].as<String>(); 
+      conditions.wd = root["weather"][0]["description"].as<String>();
+
+      // Debugging lines:
+      // Serial.println("-----------WEATHER: " + conditions.wt);  
+      // Serial.println("-----------DESCRIPTION: " + conditions.wd); 
       
     }
   }
