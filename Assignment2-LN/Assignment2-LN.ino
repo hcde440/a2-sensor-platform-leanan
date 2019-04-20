@@ -5,13 +5,10 @@
  * April 18, 2019
 */
 
-/*
- * Current Problems:
- *  Can't connect to Weather API, verify API call is correct
- *  Can't access the specific weather information
- *  Can I connect/use Http client? Not working --- updated ESP8266 and now it hilights HTTPClient object
-    Error compiling for board Adafruit Feather HUZZAH ESP8266. [vesion 2.5.0 installed] --- works now, installed version 2.4.2 instead
- */
+
+
+/************************ DASHBOARD **************************/
+// https://io.adafruit.com/leana_n/dashboards/hcde440-a2
 
 
 /******************** SCENARIO AND DESCRIPTION **********************/
@@ -30,15 +27,32 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <ArduinoJson.h>        //provides the ability to parse and construct JSON objects
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
 
-const char* key = "caaa012260600520cacdd6dc03229830";           // Personal API key for accurate Geolocation tracking of IP addresses
-const char* weatherAPIkey= "e8f7cdfb1bd8edcf0475cb27ef2b30d0";  // Personal API key for Open Weather API
+const char* key = "";           // Personal API key for accurate Geolocation tracking of IP addresses
+const char* weatherAPIkey= "";  // Personal API key for Open Weather API
+const char* reception = "";     // Stores string determining if reception will be held indoors or outdoors
+
+/*
+ * Set up for the temperature sensor
+ */
+
+ // pin connected to DH22 data line
+#define DATA_PIN 12
+
+// create DHT22 instance
+DHT_Unified dht(DATA_PIN, DHT22);
+
+// set up the 'Outdoor Temperature' and 'Venue feeds
+AdafruitIO_Feed *outdoorTemp = io.feed("outdoorTemp");
 
 /*  here we create a new data type definition, a box to hold other data types
  *  for each name:value pair coming in from the service, we will create a slot
  *  in our structure to hold our data
  */
- 
+
 typedef struct { 
   String ip;  // Variable to store IP address as a string    
   String cc;  // Variable to store Continent Code as a string
@@ -80,7 +94,7 @@ void setup() {
     Serial.print(".");                    // Prints a "."
   }
 
-  Serial.println(); Serial.println("WiFi connected"); Serial.println();
+  //Serial.println(); Serial.println("WiFi connected"); Serial.println();
   //Serial.print("Your ESP has been assigned the internal IP address ");
   // IP address 192.168.43.64
   //Serial.println(WiFi.localIP());
@@ -105,15 +119,36 @@ void setup() {
 
     Serial.println("The current weather in " + location.cy + ", " + location.rc + " is " + conditions.wt + ". More specifically, there is " + conditions.wd);
     Serial.println("The current temperature is: " + String(conditions.tp) + " degrees Fahrenheit.");
-    if(conditions.wt == "Rain" || conditions.wt == "Wind" || conditions.wt == "Snow" ||conditions.tp > 69 ) {
-      Serial.println("Setup reception indoors.");
+
+    // Conditional if it's Raining, Snowing, Windy, or 69 degrees Fahrenheit or lower, then the reception will be held indoors
+    // Otherwise, it can be held outdoors
+    if(conditions.wt == "Rain" || conditions.wt == "Wind" || conditions.wt == "Snow" || conditions.tp < 69) {  
+      reception = "Set up reception indoors.";   // Stores the decision to have reception indoors in the variable "reception"
     } else { 
-      Serial.println("Setup reception outdoors.");
+      reception = "Set up reception outdoors.";  // Stores the decision to have reception outdoors in the variable "reception"
     }
+
+    Serial.println(reception);
 }
 
 void loop() {
 
+  io.run();
+
+  sensors_event_t event;
+  dht.temperature().getEvent(&event);
+
+  float celsius = event.temperature;
+  float fahrenheit = (celsius * 1.8) + 32;  // Converts temp from Celcius to Fahrenheit
+
+  Serial.print("fahrenheit: ");
+  Serial.print(fahrenheit);
+  Serial.println("F");
+
+  String Fdeg = String(fahrenheit);         // Converts float to string variable to be sent to dashboard as Text input
+
+  // save fahrenheit (or celsius) to Adafruit IO
+  outdoorTemp->save(Fdeg + " degrees F. " + reception);   // ex: "50 degrees F. Set up reception indoors"
 
 }
 
